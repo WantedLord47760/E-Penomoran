@@ -18,3 +18,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
+dependencies {
+    // Retained for the legacy Spaceman source files in this repository.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+}
