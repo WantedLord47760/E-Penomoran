@@ -124,7 +124,7 @@ class MainActivity : Activity() {
         column.addView(controls)
 
         column.addView(label(
-            "Setelah memberi izin, pindah ke CALO11 lalu buka INFO → STATS → HASIL TERAKHIR. Biarkan panel hasil terlihat.",
+            "Setelah memberi izin, pindah ke CALO11 → INFO → STATS → HASIL TERAKHIR. Biarkan panel CALO11 tetap terlihat agar ronde baru bisa dibaca. Jika layar kembali ke JetGPT, OCR tidak dapat membaca hasil CALO11.",
             12f, Color.rgb(151, 164, 190), false
         ).apply { setPadding(dp(2), dp(12), dp(2), dp(18)) })
 

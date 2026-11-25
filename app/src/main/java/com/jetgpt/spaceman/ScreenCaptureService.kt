@@ -228,11 +228,8 @@ class ScreenCaptureService : Service() {
         val heading = lines.firstOrNull {
             it.text.replace("İ", "I").contains("HASIL TERAKHIR", ignoreCase = true)
         }
-        val hasBaganLabel = lines.any { it.text.contains("Bagan", ignoreCase = true) }
-        if (heading == null || !hasBaganLabel) {
-            pendingNewValues = emptyList()
-            pendingNewCount = 0
-            setStatus("Aktif. Menunggu panel CALO11: HASIL TERAKHIR dan BAGAN.")
+        if (heading == null) {
+            setStatus("Layar belum menampilkan panel CALO11. Pindah ke INFO → STATS → HASIL TERAKHIR.")
             return
         }
 

@@ -11,8 +11,8 @@ android {
         applicationId = "com.jetgpt.spaceman.v18"
         minSdk = 23
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.8"
+        versionCode = 19
+        versionName = "1.9"
     }
 
     compileOptions {
