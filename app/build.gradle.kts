@@ -1,0 +1,30 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.jetgpt.spaceman"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.jetgpt.spaceman"
+        minSdk = 23
+        targetSdk = 35
+        versionCode = 16
+        versionName = "1.6"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+}
