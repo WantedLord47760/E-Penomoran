@@ -37,14 +37,14 @@ object StockityAnalyzer {
             }
         }
         val runs=mutableListOf<Pair<Int,Int>>()
-        var start=-1; var last=-10
+        var start=-1; var lastActiveX=-10
         for(x in x0 until x1) {
             if(gc[x]+rc[x]>=3) {
-                if(start<0 || x-last>2) { if(start>=0) runs.add(start to last); start=x }
-                last=x
+                if(start<0 || x-lastActiveX>2) { if(start>=0) runs.add(start to lastActiveX); start=x }
+                lastActiveX=x
             }
         }
-        if(start>=0) runs.add(start to last)
+        if(start>=0) runs.add(start to lastActiveX)
         val bars=mutableListOf<CandleBar>()
         for((a,b) in runs) {
             val width=b-a+1
