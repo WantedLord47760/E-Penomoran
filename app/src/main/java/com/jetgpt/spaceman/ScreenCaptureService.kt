@@ -58,8 +58,6 @@ class ScreenCaptureService : Service() {
     private var worker: HandlerThread? = null
     private var workerHandler: Handler? = null
     private var lastOcrAt = 0L
-    private var candidateSignature = ""
-    private var candidateCount = 0
     private var stopping = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -231,7 +229,7 @@ class ScreenCaptureService : Service() {
             )
         )
         val heading = lines.firstOrNull {
-            it.text.contains("HASIL TERAKHIR", ignoreCase = true)
+            it.text.replace("İ", "I").contains("HASIL TERAKHIR", ignoreCase = true)
         }
         if (heading == null) {
             setStatus("Aktif. Menunggu panel INFO → STATS → HASIL TERAKHIR.")
@@ -244,25 +242,13 @@ class ScreenCaptureService : Service() {
             val box = line.boundingBox ?: continue
             if (box.centerY() <= headingBottom || box.centerY() >= screenHeight * 0.90) continue
             MULTIPLIER.findAll(line.text).forEach { match ->
-                val value = match.groupValues[1].replace(',', '.').toDoubleOrNull()
+                val value = parseMultiplier(match.groupValues[1])
                 if (value != null && value >= 1.0 && value <= 5000.0) values.add(value)
             }
         }
 
         if (values.size < 5) {
-            setStatus("Panel terdeteksi, tetapi angka belum terbaca cukup jelas.")
-            return
-        }
-
-        val signature = values.joinToString("|") {
-            String.format(Locale.US, "%.2f", it)
-        }
-        if (signature == candidateSignature) candidateCount++ else {
-            candidateSignature = signature
-            candidateCount = 1
-        }
-        if (candidateCount < 2) {
-            setStatus("Membaca hasil. Menunggu teks stabil…")
+            setStatus("Panel ditemukan, tetapi baru " + values.size + " multiplier terbaca. Tampilkan daftar hasil lebih jelas.")
             return
         }
 
@@ -270,12 +256,12 @@ class ScreenCaptureService : Service() {
         if (previous == null) {
             saveCaptured(values, "Impor awal dari panel hasil")
             saveSnapshot(values)
-            setStatus(values.size.toString() + " hasil awal berhasil dibaca otomatis.")
+            setStatus("Berhasil membaca dan menyimpan " + values.size + " hasil awal dari CALO11.")
             return
         }
 
         if (sameValues(previous, values)) {
-            setStatus("Aktif. Menunggu ronde baru. " + values.size + " hasil terlihat.")
+            setStatus("Pemantauan aktif. " + values.size + " hasil terbaca; menunggu ronde baru.")
             return
         }
 
@@ -285,28 +271,53 @@ class ScreenCaptureService : Service() {
             saveSnapshot(values)
             setStatus(added.size.toString() + " multiplier baru tersimpan otomatis.")
         } else {
-            setStatus("Panel berubah, tetapi ronde baru belum dapat dipastikan. Data tidak ditambahkan.")
+            setStatus(
+                "OCR membaca " + values.size +
+                    " angka, tetapi urutan belum cocok dengan riwayat sebelumnya. Kembalikan daftar ke posisi paling atas."
+            )
         }
     }
 
+    private fun parseMultiplier(raw: String): Double? {
+        val value = raw.trim()
+        val normalized = when {
+            value.contains(',') -> value.replace(".", "").replace(',', '.')
+            Regex("""^[0-9]{1,3}\\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
+            else -> value
+        }
+        return normalized.toDoubleOrNull()
+    }
+
     private fun findNewLeadingValues(previous: List<Double>, current: List<Double>): List<Double> {
+        if (current.size < 6 || previous.size < 5) return emptyList()
         val maxShift = min(8, current.size - 1)
+        var bestShift = 0
+        var bestScore = 0.0
+        var bestOverlap = 0
+
         for (shift in 1..maxShift) {
             val overlap = min(previous.size, current.size - shift)
-            if (overlap >= min(5, previous.size)) {
-                val oldPart = previous.take(overlap)
-                val newPart = current.drop(shift).take(overlap)
-                if (oldPart.indices.all { kotlin.math.abs(oldPart[it] - newPart[it]) < 0.005 }) {
-                    return current.take(shift)
-                }
+            if (overlap < min(5, previous.size)) continue
+
+            val oldPart = previous.take(overlap)
+            val newPart = current.drop(shift).take(overlap)
+            val matches = oldPart.indices.count {
+                kotlin.math.abs(oldPart[it] - newPart[it]) <= 0.03
+            }
+            val score = matches.toDouble() / overlap.toDouble()
+            if (score > bestScore || (score == bestScore && overlap > bestOverlap)) {
+                bestScore = score
+                bestShift = shift
+                bestOverlap = overlap
             }
         }
-        return emptyList()
+
+        return if (bestShift > 0 && bestScore >= 0.78) current.take(bestShift) else emptyList()
     }
 
     private fun sameValues(first: List<Double>, second: List<Double>): Boolean {
         if (first.size != second.size) return false
-        return first.indices.all { kotlin.math.abs(first[it] - second[it]) < 0.005 }
+        return first.indices.all { kotlin.math.abs(first[it] - second[it]) <= 0.03 }
     }
 
     private fun readSnapshot(): List<Double>? {
