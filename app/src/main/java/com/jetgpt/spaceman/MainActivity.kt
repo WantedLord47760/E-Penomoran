@@ -220,8 +220,8 @@ class MainActivity : Activity() {
             val latestValue = values.last()
             nextView.text =
                 "Median 20 ronde terakhir: " + format(recentMedian) + "x" +
-                "\\nHasil terbaru: " + format(latestValue) + "x" +
-                "\\nSampel: " + count + " ronde  ·  ≥2,00x: " +
+                "\nHasil terbaru: " + format(latestValue) + "x" +
+                "\nSampel: " + count + " ronde  ·  ≥2,00x: " +
                 percent(recentValues.count { it >= 2.0 }, recentValues.size)
             val recent = records.takeLast(20).asReversed().mapNotNull {
                 val v = it.optDouble("value")
