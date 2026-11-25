@@ -42,7 +42,7 @@ class ScreenCaptureService : Service() {
         private const val PREF_LAST_SNAPSHOT = "last_snapshot"
         private const val CHANNEL_ID = "jetgpt_capture_channel"
         private const val NOTIFICATION_ID = 1601
-        private val MULTIPLIER = Regex("""(?i)(?<![0-9])([0-9]{1,4}(?:[.,][0-9]{1,2})?)\s*[x×]""")
+        private val MULTIPLIER = Regex("""(?i)(?<![0-9])([0-9]{1,4}(?:[.,][0-9]{1,3})?)\s*[x×]""")
     }
 
     private val prefs by lazy {
@@ -282,7 +282,7 @@ class ScreenCaptureService : Service() {
         val value = raw.trim()
         val normalized = when {
             value.contains(',') -> value.replace(".", "").replace(',', '.')
-            Regex("""^[0-9]{1,3}\\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
+            Regex("""^[0-9]{1,3}\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
             else -> value
         }
         return normalized.toDoubleOrNull()
