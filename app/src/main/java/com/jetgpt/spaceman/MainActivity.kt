@@ -158,7 +158,7 @@ class MainActivity : Activity() {
             setHintTextColor(Color.rgb(120, 132, 158))
             setTextColor(Color.WHITE)
             textSize = 16f
-            singleLine = true
+            setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_NUMBER or
                 android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
