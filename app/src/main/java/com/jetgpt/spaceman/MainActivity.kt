@@ -130,7 +130,7 @@ class MainActivity : Activity() {
 
         val nextCard = card()
         nextCard.addView(label("ACUAN STATISTIK RONDE BERIKUTNYA", 11f, Color.rgb(151, 164, 190), true))
-        nextView = label("Belum ada data yang cukup", 22f, Color.rgb(64, 211, 170), true).apply {
+        nextView = label("Belum ada data yang cukup", 17f, Color.rgb(64, 211, 170), true).apply {
             setPadding(0, dp(10), 0, dp(6))
         }
         nextCard.addView(nextView)
@@ -215,7 +215,14 @@ class MainActivity : Activity() {
             over2View.text = percent(values.count { it >= 2.0 }, count)
             over3View.text = percent(values.count { it >= 3.0 }, count)
             over5View.text = percent(values.count { it >= 5.0 }, count)
-            nextView.text = "Median historis: " + format(median) + "x"
+            val recentValues = values.takeLast(20)
+            val recentMedian = median(recentValues.sorted())
+            val latestValue = values.last()
+            nextView.text =
+                "Median 20 ronde terakhir: " + format(recentMedian) + "x" +
+                "\\nHasil terbaru: " + format(latestValue) + "x" +
+                "\\nSampel: " + count + " ronde  ·  ≥2,00x: " +
+                percent(recentValues.count { it >= 2.0 }, recentValues.size)
             val recent = records.takeLast(20).asReversed().mapNotNull {
                 val v = it.optDouble("value")
                 if (v.isFinite() && v >= 1.0) format(v) + "x" else null
