@@ -8,11 +8,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.jetgpt.spaceman.v17"
+        applicationId = "com.jetgpt.spaceman.v18"
         minSdk = 23
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.7"
+        versionCode = 18
+        versionName = "1.8"
     }
 
     compileOptions {
