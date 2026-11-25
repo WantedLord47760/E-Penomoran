@@ -6,7 +6,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="JetGPT Spaceman"
+        android:label="JetGPT Spaceman 1.8"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false">
 
