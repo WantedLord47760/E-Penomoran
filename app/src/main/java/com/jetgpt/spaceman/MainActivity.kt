@@ -129,13 +129,13 @@ class MainActivity : Activity() {
         ).apply { setPadding(dp(2), dp(12), dp(2), dp(18)) })
 
         val nextCard = card()
-        nextCard.addView(label("ACUAN STATISTIK RONDE BERIKUTNYA", 11f, Color.rgb(151, 164, 190), true))
+        nextCard.addView(label("RINGKASAN STATISTIK TERKINI", 11f, Color.rgb(151, 164, 190), true))
         nextView = label("Belum ada data yang cukup", 17f, Color.rgb(64, 211, 170), true).apply {
             setPadding(0, dp(10), 0, dp(6))
         }
         nextCard.addView(nextView)
         nextCard.addView(label(
-            "Ini ringkasan statistik dari riwayat, bukan angka yang dapat diketahui sebelumnya. Hasil Spaceman tidak bisa dipastikan dari ronde lampau.",
+            "Ringkasan ini memakai 20 hasil terakhir dan akan berubah setelah ronde baru berhasil tersimpan. Ini acuan historis, bukan angka pasti ronde berikutnya.",
             12f, Color.rgb(164, 174, 195), false
         ))
         column.addView(nextCard)
