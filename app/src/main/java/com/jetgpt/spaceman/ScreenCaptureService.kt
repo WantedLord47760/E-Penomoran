@@ -59,6 +59,8 @@ class ScreenCaptureService : Service() {
     private var workerHandler: Handler? = null
     private var lastOcrAt = 0L
     private var stopping = false
+    private var pendingNewValues: List<Double> = emptyList()
+    private var pendingNewCount = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -222,58 +224,94 @@ class ScreenCaptureService : Service() {
     }
 
     private fun inspectText(result: com.google.mlkit.vision.text.Text, screenWidth: Int, screenHeight: Int) {
-        val lines = result.textBlocks.flatMap { it.lines }.sortedWith(
-            compareBy(
-                { it.boundingBox?.top ?: 0 },
-                { it.boundingBox?.left ?: 0 }
-            )
-        )
+        val lines = result.textBlocks.flatMap { it.lines }
         val heading = lines.firstOrNull {
             it.text.replace("İ", "I").contains("HASIL TERAKHIR", ignoreCase = true)
         }
         if (heading == null) {
+            pendingNewValues = emptyList()
+            pendingNewCount = 0
             setStatus("Aktif. Menunggu panel INFO → STATS → HASIL TERAKHIR.")
             return
         }
 
         val headingBottom = heading.boundingBox?.bottom ?: (screenHeight * 0.22).toInt()
-        val values = mutableListOf<Double>()
+        val located = mutableListOf<Triple<Int, Int, Double>>()
         for (line in lines) {
             val box = line.boundingBox ?: continue
             if (box.centerY() <= headingBottom || box.centerY() >= screenHeight * 0.90) continue
             MULTIPLIER.findAll(line.text).forEach { match ->
                 val value = parseMultiplier(match.groupValues[1])
-                if (value != null && value >= 1.0 && value <= 5000.0) values.add(value)
+                if (value != null && value >= 1.0 && value <= 5000.0) {
+                    located.add(Triple(box.centerY(), box.centerX(), value))
+                }
             }
         }
 
-        if (values.size < 5) {
-            setStatus("Panel ditemukan, tetapi baru " + values.size + " multiplier terbaca. Tampilkan daftar hasil lebih jelas.")
+        // CALO11 displays results in a multi-column grid. Group by visual row,
+        // then read each row from left to right so OCR box jitter doesn't scramble order.
+        val rowTolerance = maxOf(12, (screenHeight * 0.02).toInt())
+        val rows = mutableListOf<MutableList<Triple<Int, Int, Double>>>()
+        for (item in located.sortedBy { it.first }) {
+            val lastRow = rows.lastOrNull()
+            val averageY = lastRow?.map { it.first }?.average()
+            if (lastRow != null && averageY != null &&
+                kotlin.math.abs(item.first - averageY) <= rowTolerance
+            ) {
+                lastRow.add(item)
+            } else {
+                rows.add(mutableListOf(item))
+            }
+        }
+        val values = rows.flatMap { row ->
+            row.sortedBy { it.second }.map { it.third }
+        }.take(60)
+
+        if (values.size < 8) {
+            pendingNewValues = emptyList()
+            pendingNewCount = 0
+            setStatus("Panel ditemukan, tetapi baru " + values.size + " multiplier terbaca. Tampilkan daftar lebih jelas.")
             return
         }
 
         val previous = readSnapshot()
-        if (previous == null) {
-            saveCaptured(values, "Impor awal dari panel hasil")
+        if (previous == null || previous.size < 8) {
+            saveCaptured(values.asReversed(), "Impor awal dari panel hasil")
             saveSnapshot(values)
-            setStatus("Berhasil membaca dan menyimpan " + values.size + " hasil awal dari CALO11.")
-            return
-        }
-
-        if (sameValues(previous, values)) {
-            setStatus("Pemantauan aktif. " + values.size + " hasil terbaca; menunggu ronde baru.")
+            setStatus("Berhasil membaca dan menyimpan " + values.size + " hasil awal CALO11.")
             return
         }
 
         val added = findNewLeadingValues(previous, values)
         if (added.isNotEmpty()) {
-            saveCaptured(added, "Ronde baru dari OCR")
+            if (samePrefix(pendingNewValues, added)) {
+                pendingNewCount += 1
+            } else {
+                pendingNewValues = added
+                pendingNewCount = 1
+            }
+
+            if (pendingNewCount < 2) {
+                setStatus("Terlihat " + added.size + " hasil baru. Memastikan pembacaan sebelum menyimpan...")
+                return
+            }
+
+            saveCaptured(added.asReversed(), "Ronde baru dari OCR")
             saveSnapshot(values)
-            setStatus(added.size.toString() + " multiplier baru tersimpan otomatis.")
+            pendingNewValues = emptyList()
+            pendingNewCount = 0
+            setStatus(added.size.toString() + " multiplier baru berhasil disimpan otomatis.")
+            return
+        }
+
+        pendingNewValues = emptyList()
+        pendingNewCount = 0
+        if (kotlin.math.abs(values.first() - previous.first()) <= 0.04) {
+            setStatus("OCR membaca " + values.size + " multiplier. Belum ada hasil baru; statistik menunggu ronde berikutnya.")
         } else {
             setStatus(
                 "OCR membaca " + values.size +
-                    " angka, tetapi urutan belum cocok dengan riwayat sebelumnya. Kembalikan daftar ke posisi paling atas."
+                    " angka, tetapi urutan belum cocok. Pastikan daftar HASIL TERAKHIR berada di posisi paling atas."
             )
         }
     }
@@ -282,42 +320,63 @@ class ScreenCaptureService : Service() {
         val value = raw.trim()
         val normalized = when {
             value.contains(',') -> value.replace(".", "").replace(',', '.')
-            Regex("""^[0-9]{1,3}\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
+            Regex("""^[0-9]{1,3}\\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
             else -> value
         }
         return normalized.toDoubleOrNull()
     }
 
+    // Align the visible, newest-first OCR list with the previous snapshot.
+    // A few missing OCR boxes are allowed, because some CALO11 pills can be missed.
     private fun findNewLeadingValues(previous: List<Double>, current: List<Double>): List<Double> {
-        if (current.size < 6 || previous.size < 5) return emptyList()
-        val maxShift = min(8, current.size - 1)
+        if (previous.size < 8 || current.size < 10) return emptyList()
+        if (kotlin.math.abs(current.first() - previous.first()) <= 0.04) return emptyList()
+
         var bestShift = 0
+        var bestMatches = 0
         var bestScore = 0.0
-        var bestOverlap = 0
+        val maxShift = min(6, current.size - 8)
 
         for (shift in 1..maxShift) {
-            val overlap = min(previous.size, current.size - shift)
-            if (overlap < min(5, previous.size)) continue
+            val tail = current.drop(shift)
+            var previousCursor = 0
+            var matches = 0
 
-            val oldPart = previous.take(overlap)
-            val newPart = current.drop(shift).take(overlap)
-            val matches = oldPart.indices.count {
-                kotlin.math.abs(oldPart[it] - newPart[it]) <= 0.03
+            for (value in tail) {
+                var matchedIndex = -1
+                var smallestDifference = 0.06
+                val searchEnd = min(previous.size, previousCursor + 8)
+                for (index in previousCursor until searchEnd) {
+                    val difference = kotlin.math.abs(previous[index] - value)
+                    if (difference <= 0.05 && difference < smallestDifference) {
+                        smallestDifference = difference
+                        matchedIndex = index
+                    }
+                }
+                if (matchedIndex >= 0) {
+                    matches += 1
+                    previousCursor = matchedIndex + 1
+                }
             }
-            val score = matches.toDouble() / overlap.toDouble()
-            if (score > bestScore || (score == bestScore && overlap > bestOverlap)) {
-                bestScore = score
+
+            val score = matches.toDouble() / tail.size.toDouble()
+            if (matches >= 8 && score >= 0.70 &&
+                (score > bestScore || (score == bestScore && matches > bestMatches))
+            ) {
                 bestShift = shift
-                bestOverlap = overlap
+                bestMatches = matches
+                bestScore = score
             }
         }
 
-        return if (bestShift > 0 && bestScore >= 0.78) current.take(bestShift) else emptyList()
+        return if (bestShift > 0) current.take(bestShift) else emptyList()
     }
 
-    private fun sameValues(first: List<Double>, second: List<Double>): Boolean {
-        if (first.size != second.size) return false
-        return first.indices.all { kotlin.math.abs(first[it] - second[it]) <= 0.03 }
+    private fun samePrefix(first: List<Double>, second: List<Double>): Boolean {
+        if (first.size != second.size || first.isEmpty()) return false
+        return first.indices.all {
+            kotlin.math.abs(first[it] - second[it]) <= 0.05
+        }
     }
 
     private fun readSnapshot(): List<Double>? {
