@@ -320,7 +320,7 @@ class ScreenCaptureService : Service() {
         val value = raw.trim()
         val normalized = when {
             value.contains(',') -> value.replace(".", "").replace(',', '.')
-            Regex("""^[0-9]{1,3}\\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
+            Regex("""^[0-9]{1,3}\.[0-9]{3}$""").matches(value) -> value.replace(".", "")
             else -> value
         }
         return normalized.toDoubleOrNull()
